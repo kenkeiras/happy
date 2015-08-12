@@ -23,9 +23,9 @@ int main(int argc, char **argv){
 
     fclose(f);
 
-    long seed = time(NULL); // 99991; // 1439392913
+    long seed = time(NULL);
 
-    printf("Seed: %li\n", seed);
+    printf("Seed: 0x%lX\n", seed);
     srand(seed);
     transform_model* transform = evolve_transform(model, argv[2]);
     if (transform == NULL){
