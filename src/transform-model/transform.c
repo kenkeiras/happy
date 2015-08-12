@@ -6,178 +6,233 @@
 #include <stdlib.h>
 #include <assert.h>
 
+const char* PROGRAM_OPTIONS = ".,+-<>[] ";
+const int PROGRAM_OPTION_COUNT = 9;
+
 struct transform_model {
-    int weight_count;
-    int* weights;
-    int score;
+    long score;
+    size_t output_size;
+    size_t program_size;
+    char* program;
 };
 
-transform_model* new_model(int input_length){
-    // 4 x 256 (Mesh)
-
-    // Output (256)
-
-    const int count = pow(256 * 5, 2);
-
+transform_model* new_model(){
     transform_model* model = malloc(sizeof(transform_model));
-    model->weight_count = count;
-    model->weights = malloc(sizeof(int) * count);
+
+    model->output_size = -2;
+    model->score = -2;
+    model->program_size = 0;
+    model->program = NULL;
     return model;
 }
 
 
 transform_model* copy_model(transform_model* source){
-    transform_model* transform = malloc(sizeof(transform_model));
+    if (source == NULL){
+        return NULL;
+    }
 
+    transform_model* transform = malloc(sizeof(transform_model));
     if (transform == NULL){
         return NULL;
     }
 
-    const int count = pow(256 * 5, 2);
+    if (source->program_size > 0){
+        transform->program = malloc(sizeof(char) * source->program_size + 1);
+        if (transform->program == NULL){
+            free(transform);
+            return NULL;
+        }
 
-    transform->weight_count = count;
-    transform->weights = malloc(sizeof(int) * transform->weight_count);
-    memcpy(transform->weights,
-           source->weights,
-           sizeof(int) * transform->weight_count);
+        memcpy(transform->program, source->program, sizeof(char) * source->program_size);
+        transform->program[source->program_size] = '\0';
+    }
+    else {
+        transform->program = NULL;
+    }
+
+    transform->program_size = source->program_size;
 
     return transform;
 }
 
 
 void mutate(transform_model* transform){
-    const int mutation_ratio = 2000;
+    const int mutation_ratio = 5;
 
     int i;
-    for (i = 0; i < transform->weight_count; i++){
+    for (i = 0; i < transform->program_size; i++){
         if ((rand() % mutation_ratio) == 0){
-            transform->weights[i] = (rand() % 16) - 8;
+            transform->program[i] = PROGRAM_OPTIONS[rand() % PROGRAM_OPTION_COUNT];
         }
     }
 }
 
 
-transform_model* random_transform(int input_length){
-    transform_model* transform = new_model(input_length);
+transform_model* random_transform(){
+    transform_model* transform = new_model();
 
-    int i,
-        weights = transform->weight_count;
+    const int size = 100;
+    transform->program = malloc(sizeof(char) * size * 2 + 1);
 
-    for (i = 0; i < weights; i++){
-        transform->weights[i] = 0;
+    int i, open_brackets = 0;
+    for(i = 0; i < size; i++){
+        transform->program[i] = PROGRAM_OPTIONS[rand() % PROGRAM_OPTION_COUNT];
+        if (transform->program[i] == '['){
+            open_brackets++;
+        }
+        else if (transform->program[i] == ']'){
+            if (open_brackets > 0){
+                open_brackets--;
+            }
+            else {
+                i--;
+            }
+        }
     }
 
-    mutate(transform);
+    for (; open_brackets > 0; open_brackets--){
+        transform->program[i++] = ']';
+    }
+
+    transform->program_size = i;
+    transform->program = realloc(transform->program, sizeof(char) * i + 1);
+    transform->program[i] = '\0';
 
     return transform;
 }
 
 
-int language_score_cmp(const void* _model1,
+int inv_language_score_cmp(const void* _model1,
                        const void* _model2){
 
-    const transform_model* model1 = _model1;
-    const transform_model* model2 = _model2;
+    const transform_model* model1 = *(transform_model * const *) _model1;
+    const transform_model* model2 = *(transform_model * const *) _model2;
 
 
-    return model1->score - model2->score;
+    // Sort descendant
+    return (model2->score) - (model1->score);
 }
 
 
-void shake(int* weights, int* values){
-    int i;
-    for (i = 256; i < (256 * 6); i++){
+char* process(transform_model* transform,
+              const char* input,
+              const language_model* model){
 
-        int j;
-        for (j = 0; j < (256 * 5); j++){
-            values[i] += values[j]
-                * weights[(i - 256) * (256 * 5) + j];
-        }
-    }
-}
-
-
-void process(transform_model* transform,
-              char* input,
-              language_model* model){
+    assert(transform != NULL);
+    assert(transform->program != NULL);
 
     int input_length = strlen(input);
-    const long max_its = pow(input_length, 1.5);
+    const long max_cycles = input_length * 1000;
+    const int max_depth = 256;
+    int depth = 0;
+    int loop_stack[max_depth];
 
-    int size = 0;
+    int output_size = 0;
+    int output_heap_size = 128;
+    char* output = malloc(sizeof(char) * output_heap_size);
+
     int mem_size = 128;
-    char* output = malloc(sizeof(char) * mem_size);
+    char* mem = malloc(sizeof(char) * mem_size);
+    memset(mem, 0, sizeof(char) * 128);
 
+    int crashed = 0;
+    int counter;
     int input_i = 0;
-    int i;
+    int mem_dir = 0;
+    int ip;
 
-    int* weights = transform->weights;
-    int* values = malloc(sizeof(int) * 256 * 6);
-    for (i = 0; i < (256 * 6); i++){
-        values[i] = 0;
-    }
+    for (ip = 0, counter = 0;
+         (ip < transform->program_size) && (counter < max_cycles);
+         counter++){
 
-    for (i = 0; i < max_its; i++){
-        // Reset input cells
-        {
-            int i;
-            for (i = 0; i < 256; i++){
-                values[i] = 0;
+        switch(transform->program[ip++]){
+        case '+':
+            mem[mem_dir]++;
+            break;
+
+        case '-':
+            mem[mem_dir]--;
+            break;
+
+        case '<':
+            mem_dir--;
+            if (mem_dir < 0){
+
+                char* new_mem = malloc(sizeof(char) * (mem_size + 128));
+                memset(new_mem, 0, sizeof(char) * 128);
+                memcpy(&new_mem[128], mem, sizeof(char) * mem_size);
+
+                free(mem);
+                mem = new_mem;
+
+                mem_size += 128;
+                mem_dir += 128;
+
+                assert(mem_dir >= 0);
             }
-        }
+            break;
 
-        // Activate input cell for this input
-        if (input_i >= input_length) {
-            values[0] = 1;
-        }
-        else {
-            values[(unsigned char)input[input_i++]] = 1;
-        }
+        case '>':
+            mem_dir++;
+            if (mem_dir >= mem_size){
+                mem = realloc(mem, sizeof(char) * (mem_size + 128));
+                memset(&mem[mem_size], 0, sizeof(char) * 128);
 
-        shake(weights, values);
-
-        // Read output
-        int* outputs = &values[256 * 5];
-        int num_active = 0;
-        int last = 0;
-        {
-            int i;
-            for (i = 0; i < 256; i++){
-
-                /* printf("%i ", outputs[i]); */
-
-                if (outputs[i] > 0){
-                    num_active++;
-                    last = i;
-                }
+                mem_size += 128;
+                assert(mem_dir < mem_size);
             }
-        }
+            break;
 
-        printf("%i ", num_active);
-        if (num_active == 1){
-            if (outputs[0] > 0){
-                break;
+        case '[':
+            if (depth >= max_depth){ // Crash program
+                ip = transform->program_size;
+                crashed = 1;
+            }
+            loop_stack[depth++] = ip;
+            break;
+
+        case ']':
+            if (depth < 1){  // Crash program
+                ip = transform->program_size;
+                crashed = 1;
+            }
+            else if (mem[mem_dir] != 0){
+                ip = loop_stack[--depth];
+            }
+            break;
+
+        case ',':
+            if (input_i < input_length){
+                mem[mem_dir] = input[input_i++];
             }
             else {
-                if ((size + 1) >= mem_size){
-                    mem_size += 128;
-                    output = realloc(output, mem_size);
-                }
-
-                output[size++] = last;
+                mem[mem_dir] = '\0';
             }
+            break;
+
+        case '.':
+            if ((output_size + 1) >= output_heap_size){
+                output_heap_size += 128;
+                output = realloc(output, sizeof(char) * output_heap_size);
+            }
+            output[output_size++] = mem[mem_dir];
+            break;
         }
     }
 
-    output[size] = '\0';
-    transform->score = language_model_score(model, output) + (size != 0);
+    output[output_size] = '\0';
+    transform->score = language_model_score(model, output) / (crashed + 1)
+        + ((!crashed) && (output_size != 0));
 
-    printf("\n\x1b[1;97;41m[Sz: %i]\x1b[0m"
-           "\x1b[1;97;42m[Sc: %i]\x1b[0m"
-           " -> \x1b[1m{%s}\x1b[0m\n",
-           size, transform->score, output);
+    if (output_size > 0){
+        transform->score = transform->score / pow(output_size / 10, 2);
+    }
+    transform->output_size = output_size;
 
-    free(output);
+    free(mem);
+
+    return output;
 }
 
 
@@ -200,12 +255,24 @@ void cross(transform_model* population[]){
         for (j = 0; j < 7; j++){
             if (i != j){
                 population[index] = copy_model(population[i]);
+                assert(population[index] != NULL);
 
-                int c = population[index]->weight_count;
-                int middle = (rand() % c);
-                memcpy(&(population[index]->weights[middle]),
-                       &(population[j]->weights[middle]),
-                       sizeof(int) * (c - middle));
+                size_t i_size = population[i]->program_size;
+                size_t j_size = population[j]->program_size;
+                size_t middle = (rand() % i_size);
+
+                int cp_size = j_size < i_size? j_size : i_size;
+                if ((cp_size - middle) > 0){
+
+                    /* memcpy(&(population[index]->program[middle]), */
+                    /*        &(population[j]->program[middle]), */
+                    /*        sizeof(char) * (cp_size - middle)); */
+
+                    population[index]->program_size = cp_size;
+                }
+                else {
+                    population[index]->program_size = middle;
+                }
 
                 index++;
             }
@@ -227,8 +294,6 @@ void cross(transform_model* population[]){
     for (i = 0; i < 64; i++){
         mutate(population[i]);
     }
-
-
 }
 
 transform_model* evolve_transform(language_model* model, char* text){
@@ -246,33 +311,55 @@ transform_model* evolve_transform(language_model* model, char* text){
     }
 
 
-    long iterations = pow(input_length, 3);
+    long iterations = 99999999;
 
+    long max_score = 0;
     long iteration;
     for (iteration = 0; iteration < iterations; iteration++){
         {
             int i;
             for (i = 0; i < population_count; i++){
-                printf("<%3i/128>\n", i + 1);
-                process(population[i], text, model);
+                char* out = process(population[i], text, model);
+
+                if (strcasecmp(out, "stars are made of weird stuff") == 0){
+                    printf("Iteration (%li/%li) [%li | %li]: \x1b[1m%s\x1b[0m\n"
+                           "\x1b[1;92;40m%s\x1b[0m\n\n",
+                           iteration, iterations, population[i]->score,
+                           population[i]->output_size, out, population[i]->program);
+                    exit(0);
+                }
+
+                free(out);
             }
         }
 
 
-        qsort(population, population_count,
-              sizeof(transform_model*), language_score_cmp);
+        qsort(&population, population_count, sizeof(transform_model*),
+              inv_language_score_cmp);
 
+        {
+            transform_model* winner = population[0];
+            char* better = process(winner, text, model);
+            char* sprog = malloc(sizeof(char) * winner->program_size + 1);
+            memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
+            sprog[winner->program_size] = '\0';
+
+            if ((iteration % 1000) == 0) {
+                printf("Iteration (%li/%li) [%li | %li]: %s\n%s\n\n",
+                       iteration, iterations, winner->score,
+                       winner->output_size, better, sprog);
+            }
+
+            assert(winner->score >= max_score);
+            max_score = winner->score;
+
+            free(sprog);
+            free(better);
+        }
 
         if (iteration != (iterations - 1)){
             cross(population);
         }
-        //if ((iteration % 100) == 0){
-            /* char *better = process(population[0], text); */
-            printf("Iteration (%li/%li)\n", //  [%i]: %s\n\n",
-                    iteration, iterations);
-            /*        population[0]->score, better); */
-            /* free(better); */
-        //}
     }
 
     // Free population
@@ -289,7 +376,7 @@ transform_model* evolve_transform(language_model* model, char* text){
 
 void free_transform_model(transform_model* model){
     if (model != NULL){
-        free(model->weights);
+        free(model->program);
     }
 
     free(model);

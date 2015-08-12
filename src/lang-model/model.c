@@ -61,8 +61,8 @@ void free_language_model(language_model* model){
 }
 
 
-int language_model_score(language_model* model,
-                         char *words){
+int language_model_score(const language_model* model,
+                         const char *words){
 
     if (words[0] == '\0'){
         return 0;
@@ -71,7 +71,7 @@ int language_model_score(language_model* model,
     int score = 0;
     int i;
 
-    short* two_grams = model->two_grams;
+    const short* two_grams = model->two_grams;
 
     for (i = 0; words[i + 1] != '\0'; i++){
 

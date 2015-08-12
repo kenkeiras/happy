@@ -1,6 +1,7 @@
 #include "lang-model/model.h"
 #include "transform-model/model.h"
 #include <stdlib.h>
+#include <time.h>
 
 int main(int argc, char **argv){
     if (argc < 3){
@@ -22,7 +23,10 @@ int main(int argc, char **argv){
 
     fclose(f);
 
+    long seed = time(NULL); // 99991; // 1439392913
 
+    printf("Seed: %li\n", seed);
+    srand(seed);
     transform_model* transform = evolve_transform(model, argv[2]);
     if (transform == NULL){
         perror("Evolve transform");
