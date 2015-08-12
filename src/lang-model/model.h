@@ -7,6 +7,6 @@ typedef struct language_model language_model;
 
 language_model* build_language_model(FILE *f);
 void free_language_model(language_model* model);
-int language_model_score(const language_model* model, const char* text);
+unsigned long language_model_score(const language_model* model, const char* text);
 
 #endif

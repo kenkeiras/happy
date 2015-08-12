@@ -23,7 +23,7 @@ int main(int argc, char **argv){
 
     fclose(f);
 
-    long seed = time(NULL);
+    long seed = 0x55CB9B70; //time(NULL);
 
     printf("Seed: 0x%lX\n", seed);
     srand(seed);

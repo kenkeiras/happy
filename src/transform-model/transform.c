@@ -6,8 +6,14 @@
 #include <stdlib.h>
 #include <assert.h>
 
-const char* PROGRAM_OPTIONS = ".,+-<>[] ";
-const int PROGRAM_OPTION_COUNT = 9;
+const char* PROGRAM_OPTIONS = ".,+-<>[]";
+const int PROGRAM_OPTION_COUNT = 8;
+const int PROGRAM_SIZE = 100;
+const int POPULATION_SIZE = 128;
+const int MUTATION_RATIO = 4;
+
+// Not too big, as it's used as the cross algorithm reference
+const int POPULATION_BLOCK = 16;
 
 struct transform_model {
     long score;
@@ -57,8 +63,7 @@ transform_model* copy_model(transform_model* source){
 }
 
 
-void mutate(transform_model* transform){
-    const int mutation_ratio = 5;
+void mutate(transform_model* transform, const int mutation_ratio){
 
     int i;
     for (i = 0; i < transform->program_size; i++){
@@ -72,7 +77,7 @@ void mutate(transform_model* transform){
 transform_model* random_transform(){
     transform_model* transform = new_model();
 
-    const int size = 100;
+    const int size = PROGRAM_SIZE;
     transform->program = malloc(sizeof(char) * size * 2 + 1);
 
     int i, open_brackets = 0;
@@ -228,9 +233,6 @@ char* process(transform_model* transform,
     transform->score = language_model_score(model, output) / (crashed + 1)
         + ((!crashed) && (output_size != 0));
 
-    if (output_size > 0){
-        transform->score = transform->score / pow(output_size / 10, 2);
-    }
     transform->output_size = output_size;
 
     free(mem);
@@ -238,76 +240,69 @@ char* process(transform_model* transform,
     return output;
 }
 
+void cross(transform_model* population[], int iteration, const char* text){
+    // Mutations of the first half, the worst, the more mutations
+    int i;
+    int cut_point = POPULATION_SIZE / 2;
+    for (i = 1; i < POPULATION_SIZE / 2; i++){
+        mutate(population[i], POPULATION_SIZE / i);
+    }
 
-void halp(){}
-
-void cross(transform_model* population[], int iteration){
-    // Consider a 128 individual population
-    // Keep the first
-    // Mutate the first 32
-    // The next 31 are the cross of the first 5x7
-    // And the remaining are mutations of the first 64
-
-    // So, remove the last 64
-    int i, j;
-    for (i = 64; i < 128; i++){
+    for (; i < POPULATION_SIZE; i++){
         free_transform_model(population[i]);
     }
 
-    // Cross the 5 x 7 first
-    int index = 64;
-    for (i = 0; i < 5; i++){ // for (i = 0; i < 5; i++){
-        for (j = 0; j < 7; j++){
-            if (i != j){
-                population[index] = copy_model(population[i]);
-                assert(population[index] != NULL);
 
-                size_t i_size = population[i]->program_size;
-                size_t j_size = population[j]->program_size;
-                size_t middle = (rand() % i_size);
+    // Then cross the following
+    int index, block;
+    for (block = 0, index = cut_point;
+         index < POPULATION_SIZE; block++){
 
-                size_t cp_size = j_size < i_size? j_size : i_size;
+        int i, j;
+        for (i = 0; (i < POPULATION_BLOCK) && (index < POPULATION_SIZE); i++){
 
+            int real_i = i + POPULATION_BLOCK * block;
+            assert(real_i < cut_point);
 
-                if ((((int) cp_size) - ((int) middle)) > 0){
+            for (j = 0; (j < POPULATION_BLOCK) && (index < POPULATION_SIZE); j++){
 
-                    memcpy(&(population[index]->program[middle]),
-                           &(population[j]->program[middle]),
-                           sizeof(char) * (cp_size - middle));
+                int real_j = j + POPULATION_BLOCK * (block ^ 1);
+                assert(real_j < cut_point);
 
-                    population[index]->program_size = cp_size;
+                if (real_i != real_j){
+
+                    population[index] = copy_model(population[real_i]);
+                    assert(population[index] != NULL);
+
+                    size_t i_size = population[real_i]->program_size;
+                    size_t j_size = population[real_j]->program_size;
+                    size_t middle = (rand() % i_size);
+
+                    size_t cp_size = j_size < i_size? j_size : i_size;
+
+                    if ((((int) cp_size) - ((int) middle)) > 0){
+
+                        memcpy(&(population[index]->program[middle]),
+                               &(population[real_j]->program[middle]),
+                               sizeof(char) * (cp_size - middle));
+
+                        population[index]->program_size = cp_size;
+                    }
+                    else {
+                        population[index]->program_size = middle;
+                    }
+
+                    index++;
                 }
-                else {
-                    population[index]->program_size = middle;
-                }
-
-                index++;
             }
         }
     }
-
-
-    // Keep a copy of the first and second
-    assert(index == (64 + 30));
-    population[index++] = copy_model(population[0]);
-    population[index++] = copy_model(population[1]);
-
-    // Mutations of the first 32
-    for (i = 0; index < 128; index++, i++){
-        population[index] = copy_model(population[i]);
-        mutate(population[index]);
-    }
-
-    // Mutations of the first 64
-    for (i = 0; i < 64; i++){
-        mutate(population[i]);
-    }
 }
 
-transform_model* evolve_transform(language_model* model, char* text){
+transform_model* evolve_transform(const language_model* model, const char* text){
 
     /* const int input_length = strlen(text); */
-    const int population_count = 128;
+    const int population_count = POPULATION_SIZE;
     transform_model* population[population_count];
 
     // Initial population
@@ -319,20 +314,17 @@ transform_model* evolve_transform(language_model* model, char* text){
     }
 
 
-    long iterations = 99999999;
-
-    long max_score = 0;
     long iteration;
-    for (iteration = 0; iteration < iterations; iteration++){
+    for (iteration = 0;;iteration++){
         {
             int i;
             for (i = 0; i < population_count; i++){
                 char* out = process(population[i], text, model);
 
                 if (strcasecmp(out, "stars are made of weird stuff") == 0){
-                    printf("Iteration (%li/%li) [Sc: %li |Sz: %li]: |\x1b[1m%s\x1b[0m|\n"
-                           "\x1b[1;92;40m%s\x1b[0m\n\n",
-                           iteration, iterations, population[i]->score,
+                    printf("Iteration (%5li) [Sc: %li |Sz: %li]: |\x1b[1m%s\x1b[0m|\n"
+                           "\x1b[1;92;40m%s\x1b[0m\n",
+                           iteration, population[i]->score,
                            population[i]->output_size, out, population[i]->program);
                     exit(0);
                 }
@@ -345,29 +337,28 @@ transform_model* evolve_transform(language_model* model, char* text){
         qsort(&population, population_count, sizeof(transform_model*),
               inv_language_score_cmp);
 
-        {
-            transform_model* winner = population[0];
-            char* better = process(winner, text, model);
-            char* sprog = malloc(sizeof(char) * winner->program_size + 1);
-            memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
-            sprog[winner->program_size] = '\0';
+        if ((iteration % 1) == 0) {
+            int i;
+            for (i = 0; i < 1; i++){
+                transform_model* winner = population[i];
+                char* better = process(winner, text, model);
+                char* sprog = malloc(sizeof(char) * winner->program_size + 1);
+                memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
+                sprog[winner->program_size] = '\0';
 
-            if ((iteration % 100) == 0) {
-                printf("Iteration (%li/%li) [%li | %li]: %s\n%s\n\n",
-                       iteration, iterations, winner->score,
+                printf("n%i Iteration (%5li) [%li | %li]: |%s|\n%s\n\n",
+                       i, iteration, winner->score,
                        winner->output_size, better, sprog);
+
+                free(sprog);
+                free(better);
+
+
             }
-
-            assert(winner->score >= max_score);
-            max_score = winner->score;
-
-            free(sprog);
-            free(better);
+            printf("\n");
         }
 
-        if (iteration != (iterations - 1)){
-            cross(population, iteration);
-        }
+        cross(population, iteration, text);
     }
 
     // Free population
