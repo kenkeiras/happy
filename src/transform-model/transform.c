@@ -10,11 +10,8 @@
 const char* PROGRAM_OPTIONS = ".,+-<>[]";
 #define PROGRAM_OPTION_COUNT 8
 #define MAX_MUTATION_RATE PROGRAM_OPTION_COUNT
-const int PROGRAM_SIZE = 100;
-const int POPULATION_SIZE = 128;
-
-// Not too big, as it's used as the cross algorithm reference
-const int POPULATION_BLOCK = 16;
+const int PROGRAM_SIZE = 256;
+const int POPULATION_SIZE = 256;
 
 struct transform_model {
     long score;
@@ -251,59 +248,46 @@ void shake(transform_model* population[]){
 
 void cross(transform_model* population[], int iteration, const char* text){
     // Mutations of the first half, the worst, the more mutations
-    int i;
+    int index;
     int cut_point = POPULATION_SIZE / 2;
-    for (i = 1; i < POPULATION_SIZE / 2; i++){
-        mutate(population[i], POPULATION_SIZE / i);
+    for (index = 1; index < cut_point; index++){
+        mutate(population[index], POPULATION_SIZE / index);
     }
-
-    for (; i < POPULATION_SIZE; i++){
-        free_transform_model(population[i]);
-    }
-
 
     // Then cross the following
-    int index, block;
-    for (block = 0, index = cut_point;
-         index < POPULATION_SIZE; block++){
+    for (; index < POPULATION_SIZE; index++){
+
+        free_transform_model(population[index]);
 
         int i, j;
-        for (i = 0; (i < POPULATION_BLOCK) && (index < POPULATION_SIZE); i++){
 
-            int real_i = i + POPULATION_BLOCK * block;
-            assert(real_i < cut_point);
+        do {
+            i = rand() % POPULATION_SIZE;
+        } while (i == index);
 
-            for (j = 0; (j < POPULATION_BLOCK) && (index < POPULATION_SIZE); j++){
+        do {
+            j = rand() % POPULATION_SIZE;
+        } while ((j == index) || (j == i));
 
-                int real_j = j + POPULATION_BLOCK * (block ^ 1);
-                assert(real_j < cut_point);
+        population[index] = copy_model(population[i]);
+        assert(population[index] != NULL);
 
-                if (real_i != real_j){
+        size_t i_size = population[i]->program_size;
+        size_t j_size = population[j]->program_size;
+        size_t middle = (rand() % i_size);
 
-                    population[index] = copy_model(population[real_i]);
-                    assert(population[index] != NULL);
+        size_t cp_size = j_size < i_size? j_size : i_size;
 
-                    size_t i_size = population[real_i]->program_size;
-                    size_t j_size = population[real_j]->program_size;
-                    size_t middle = (rand() % i_size);
+        if ((((int) cp_size) - ((int) middle)) > 0){
 
-                    size_t cp_size = j_size < i_size? j_size : i_size;
+            memcpy(&(population[index]->program[middle]),
+                   &(population[j]->program[middle]),
+                   sizeof(char) * (cp_size - middle));
 
-                    if ((((int) cp_size) - ((int) middle)) > 0){
-
-                        memcpy(&(population[index]->program[middle]),
-                               &(population[real_j]->program[middle]),
-                               sizeof(char) * (cp_size - middle));
-
-                        population[index]->program_size = cp_size;
-                    }
-                    else {
-                        population[index]->program_size = middle;
-                    }
-
-                    index++;
-                }
-            }
+            population[index]->program_size = cp_size;
+        }
+        else {
+            population[index]->program_size = middle;
         }
     }
 }
