@@ -2,6 +2,7 @@
 #include "transform-model/model.h"
 #include <stdlib.h>
 #include <time.h>
+#include <assert.h>
 
 int main(int argc, char **argv){
     if (argc < 3){
@@ -23,7 +24,11 @@ int main(int argc, char **argv){
 
     fclose(f);
 
-    long seed = 0x55CB9B70; //time(NULL);
+    assert(language_model_score(model, "flag star")
+           <
+           language_model_score(model, "flag stars are made of weird"));
+
+    long seed = time(NULL);
 
     printf("Seed: 0x%lX\n", seed);
     srand(seed);

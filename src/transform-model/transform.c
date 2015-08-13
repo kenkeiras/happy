@@ -10,7 +10,7 @@ const char* PROGRAM_OPTIONS = ".,+-<>[]";
 const int PROGRAM_OPTION_COUNT = 8;
 const int PROGRAM_SIZE = 100;
 const int POPULATION_SIZE = 128;
-const int MUTATION_RATIO = 4;
+const char* TEST_STR = "flag stars are made of weird stuff";
 
 // Not too big, as it's used as the cross algorithm reference
 const int POPULATION_BLOCK = 16;
@@ -321,11 +321,13 @@ transform_model* evolve_transform(const language_model* model, const char* text)
             for (i = 0; i < population_count; i++){
                 char* out = process(population[i], text, model);
 
-                if (strcasecmp(out, "stars are made of weird stuff") == 0){
+                if (strcasecmp(out, TEST_STR) == 0){
                     printf("Iteration (%5li) [Sc: %li |Sz: %li]: |\x1b[1m%s\x1b[0m|\n"
                            "\x1b[1;92;40m%s\x1b[0m\n",
-                           iteration, population[i]->score,
-                           population[i]->output_size, out, population[i]->program);
+                           iteration, population[i]->score, population[i]->output_size,
+                           out, population[i]->program);
+
+                    free(out);
                     exit(0);
                 }
 
@@ -337,25 +339,19 @@ transform_model* evolve_transform(const language_model* model, const char* text)
         qsort(&population, population_count, sizeof(transform_model*),
               inv_language_score_cmp);
 
-        if ((iteration % 1) == 0) {
-            int i;
-            for (i = 0; i < 1; i++){
-                transform_model* winner = population[i];
-                char* better = process(winner, text, model);
-                char* sprog = malloc(sizeof(char) * winner->program_size + 1);
-                memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
-                sprog[winner->program_size] = '\0';
+        if ((iteration % 100) == 0) {
+            transform_model* winner = population[0];
+            char* better = process(winner, text, model);
+            char* sprog = malloc(sizeof(char) * winner->program_size + 1);
+            memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
+            sprog[winner->program_size] = '\0';
 
-                printf("n%i Iteration (%5li) [%li | %li]: |%s|\n%s\n\n",
-                       i, iteration, winner->score,
-                       winner->output_size, better, sprog);
+            printf("Iteration (%5li) [%li | %li]: |%20s|\n%s\n\n",
+                   iteration, winner->score,
+                   winner->output_size, better, sprog);
 
-                free(sprog);
-                free(better);
-
-
-            }
-            printf("\n");
+            free(sprog);
+            free(better);
         }
 
         cross(population, iteration, text);
