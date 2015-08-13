@@ -1,4 +1,4 @@
-CFLAGS=-ggdb -Wall -Werror -O3 -pg
+CFLAGS=-ggdb -Wall -Werror -O3
 CC=gcc
 
 all: | bin obj bin/happy

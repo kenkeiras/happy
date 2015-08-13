@@ -11,7 +11,7 @@ const char* PROGRAM_OPTIONS = ".,+-<>[]";
 #define PROGRAM_OPTION_COUNT 8
 #define MAX_MUTATION_RATE PROGRAM_OPTION_COUNT
 const int PROGRAM_SIZE = 100;
-const int POPULATION_SIZE = 256;
+const int POPULATION_SIZE = 128;
 
 // Not too big, as it's used as the cross algorithm reference
 const int POPULATION_BLOCK = 16;
@@ -196,7 +196,7 @@ char* process(transform_model* transform,
                 ip = transform->program_size;
                 crashed = 1;
             }
-            loop_stack[depth++] = ip;
+            loop_stack[depth++] = ip - 1;
             break;
 
         case ']':
@@ -354,8 +354,8 @@ transform_model* evolve_transform(
                 sprog[winner->program_size] = '\0';
 
                 if (strlen(better) > 40){
-                    strcat(&better[30],
-                           "\x1b[1m%\x1b[0m");
+                    strcpy(&better[30],
+                           "\x1b[7m%\x1b[0m");
                 }
 
                 printf("Iteration (%5li) [%li | %li]: |%s|\n%s\n\n",

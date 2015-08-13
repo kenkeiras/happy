@@ -69,12 +69,12 @@ language_model* build_language_model(FILE *f){
                 word[word_pos++] = third;
             }
             else {
-                if (word_pos > 1){
+                if (word_pos > 2){
                     word[word_pos] = '\0';
                     void *v = get_hash_table(model->word_count, word);
                     insert_hash_table(model->word_count, word, (void*) (((long)v) + 1));
                 }
-                word_pos = '\0';
+                word_pos = 0;
             }
         }
 
@@ -228,7 +228,12 @@ unsigned long language_model_score(const language_model* model,
                          + (three_gram_score * THREE_GRAM_SCORE_MODIFIER)
                          + (word_score * WORD_SCORE_MODIFIER));
 
-    unsigned long final_score = ((double) (100 * general_score)) / (log2(penalization_divider));
+    unsigned long final_score = ((double) (10 * general_score)) / (pow(penalization_divider, 0.5));
+    if((general_score * 10) < final_score){
+        printf("%lf * 10 = %lf < %li\n\n", general_score, general_score * 10, final_score);
+    }
+
+    assert((general_score == 0) || ((general_score * 10) > final_score));
 
     return final_score;
 }
