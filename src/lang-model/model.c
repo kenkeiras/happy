@@ -128,7 +128,6 @@ unsigned long language_model_score(const language_model* model,
     double three_gram_score = 0;
     int i;
 
-    /*
     const short* two_grams = model->two_grams;
     for (i = 0; words[i + 1] != '\0'; i++){
 
@@ -142,9 +141,7 @@ unsigned long language_model_score(const language_model* model,
 
         two_gram_score += two_grams[index] != 0;
     }
-    */
 
-    /*
     const short* three_grams = model->three_grams;
     for (i = 0; words[i + 2] != '\0'; i++){
 
@@ -159,7 +156,6 @@ unsigned long language_model_score(const language_model* model,
 
         three_gram_score +=  three_grams[index] != 0;
     }
-    */
 
 
     // Classify words and garbage
@@ -184,8 +180,12 @@ unsigned long language_model_score(const language_model* model,
                 garbage_size++;
             }
             if (!isprint(words[i])){
+                garbage_size++;
+            }
+            if (!isascii(words[i])){
                 garbage_size += 2;
             }
+
             if (word_pos > 1){
                 word[word_pos] = '\0';
 
