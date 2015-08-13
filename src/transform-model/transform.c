@@ -12,6 +12,7 @@ const char* PROGRAM_OPTIONS = ".,+-<>[]";
 #define MAX_MUTATION_RATE PROGRAM_OPTION_COUNT
 const int PROGRAM_SIZE = 256;
 const int POPULATION_SIZE = 256;
+#define MAX_CYCLES 1000
 
 struct transform_model {
     long score;
@@ -25,9 +26,19 @@ transform_model* new_model(){
 
     model->output_size = -2;
     model->score = -2;
-    model->program_size = 0;
+    model->program_size = -2;
     model->program = NULL;
     return model;
+}
+
+
+transform_model* transform_from_program(char *program){
+    transform_model* transform = new_model();
+
+    transform->program = strdup(program);
+    transform->program_size = strlen(program);
+
+    return transform;
 }
 
 
@@ -127,7 +138,7 @@ char* process(transform_model* transform,
     assert(transform->program != NULL);
 
     int input_length = strlen(input);
-    const long max_cycles = input_length * 100;
+    const unsigned long max_cycles = MAX_CYCLES;
     const int max_depth = 256;
     int depth = 0;
     int loop_stack[max_depth];
@@ -137,33 +148,36 @@ char* process(transform_model* transform,
     char* output = malloc(sizeof(char) * output_heap_size);
 
     int mem_size = 128;
-    char* mem = malloc(sizeof(char) * mem_size);
-    memset(mem, 0, sizeof(char) * 128);
+    unsigned char* mem = malloc(sizeof(char) * mem_size);
+    assert(mem != NULL);
+    memset(mem, 0, sizeof(char) * mem_size);
 
     int crashed = 0;
-    int counter;
     int input_i = 0;
     int mem_dir = 0;
-    int ip;
 
-    for (ip = 0, counter = 0;
-         (ip < transform->program_size) && (counter < max_cycles);
+    unsigned long counter;
+    unsigned long ip;
+
+    assert(transform->program_size >= 0);
+
+    for (ip = counter = 0;(ip < transform->program_size) && (counter < max_cycles);
          counter++){
 
         switch(transform->program[ip++]){
         case '+':
-            mem[mem_dir]++;
+            mem[mem_dir] = (mem[mem_dir] + 1) & 0xFF;
             break;
 
         case '-':
-            mem[mem_dir]--;
+            mem[mem_dir] = (mem[mem_dir] - 1) & 0xFF;
             break;
 
         case '<':
             mem_dir--;
             if (mem_dir < 0){
 
-                char* new_mem = malloc(sizeof(char) * (mem_size + 128));
+                unsigned char* new_mem = malloc(sizeof(char) * (mem_size + 128));
                 memset(new_mem, 0, sizeof(char) * 128);
                 memcpy(&new_mem[128], mem, sizeof(char) * mem_size);
 
@@ -189,11 +203,28 @@ char* process(transform_model* transform,
             break;
 
         case '[':
-            if (depth >= max_depth){ // Crash program
+            if (mem[mem_dir] == 0){ // Skip to the corresponding ']'
+                int search_depth = 1;
+                while ((search_depth > 0) && (ip < transform->program_size)){
+                    switch(transform->program[ip++]){
+                    case '[':
+                        search_depth++;
+                        break;
+
+                    case ']':
+                        search_depth--;
+                        break;
+                    }
+                }
+
+            }
+            else if (depth >= max_depth){ // Crash program
                 ip = transform->program_size;
                 crashed = 1;
             }
-            loop_stack[depth++] = ip - 1;
+            else {
+                loop_stack[depth++] = ip - 1;
+            }
             break;
 
         case ']':
@@ -201,7 +232,7 @@ char* process(transform_model* transform,
                 ip = transform->program_size;
                 crashed = 1;
             }
-            else if (mem[mem_dir] != 0){
+            else {
                 ip = loop_stack[--depth];
             }
             break;
@@ -228,9 +259,14 @@ char* process(transform_model* transform,
         }
     }
 
+
+
     output[output_size] = '\0';
-    transform->score = language_model_score(model, output) / (crashed + 1)
-        + ((!crashed) && (output_size != 0));
+
+    if (model != NULL){
+        transform->score = language_model_score(model, output) / (crashed + 1)
+            + ((!crashed) && (output_size != 0));
+    }
 
     transform->output_size = output_size;
 
@@ -291,6 +327,7 @@ void cross(transform_model* population[], int iteration, const char* text){
         }
     }
 }
+
 
 transform_model* evolve_transform(
     const language_model* model,

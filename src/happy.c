@@ -48,7 +48,28 @@ int controller(int iteration, transform_model* transform,
     return EVOLVE_CONTINUE;
 }
 
+
+void run(char *program, char *input){
+    transform_model *transform = transform_from_program(program);
+
+    char *output = process(transform, input, NULL);
+
+    show_transform_model(transform);
+
+    printf("<%li> %s\n", strlen(output), output);
+
+    free(output);
+    free_transform_model(transform);
+}
+
+
 int main(int argc, char **argv){
+
+    if ((argc == 4) && (strcmp(argv[1], "run") == 0)){
+        run(argv[2], argv[3]);
+        return 0;
+    }
+
     if (argc < 3){
         printf("%s <file> <text>\n", argc > 0? argv[0] : "happy");
         return 0;
