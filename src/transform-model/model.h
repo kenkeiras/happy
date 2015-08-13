@@ -6,7 +6,11 @@
 
 typedef struct transform_model transform_model;
 
-transform_model* evolve_transform(const language_model* model, const char* text);
+transform_model* evolve_transform(
+    const language_model* model, const char* text,
+    int (*controller) (
+        int iteration, transform_model* transform,
+        const char* better_output, unsigned long score));
 void free_transform_model(transform_model* model);
 void show_transform_model(transform_model* model);
 

@@ -1,5 +1,6 @@
 #include "model.h"
 #include "../lang-model/model.h"
+#include "controller.h"
 
 #include <math.h>
 #include <string.h>
@@ -7,10 +8,10 @@
 #include <assert.h>
 
 const char* PROGRAM_OPTIONS = ".,+-<>[]";
-const int PROGRAM_OPTION_COUNT = 8;
+#define PROGRAM_OPTION_COUNT 8
+#define MAX_MUTATION_RATE PROGRAM_OPTION_COUNT
 const int PROGRAM_SIZE = 100;
-const int POPULATION_SIZE = 128;
-const char* TEST_STR = "flag stars are made of weird stuff";
+const int POPULATION_SIZE = 256;
 
 // Not too big, as it's used as the cross algorithm reference
 const int POPULATION_BLOCK = 16;
@@ -67,7 +68,8 @@ void mutate(transform_model* transform, const int mutation_ratio){
 
     int i;
     for (i = 0; i < transform->program_size; i++){
-        if ((rand() % mutation_ratio) == 0){
+        if ((mutation_ratio >= PROGRAM_OPTION_COUNT)
+            || ((rand() % mutation_ratio) == 0)){
             transform->program[i] = PROGRAM_OPTIONS[rand() % PROGRAM_OPTION_COUNT];
         }
     }
@@ -128,7 +130,7 @@ char* process(transform_model* transform,
     assert(transform->program != NULL);
 
     int input_length = strlen(input);
-    const long max_cycles = input_length * 1000;
+    const long max_cycles = input_length * 100;
     const int max_depth = 256;
     int depth = 0;
     int loop_stack[max_depth];
@@ -240,6 +242,13 @@ char* process(transform_model* transform,
     return output;
 }
 
+void shake(transform_model* population[]){
+    int i;
+    for (i = 0; i < POPULATION_SIZE; i++){
+        mutate(population[i], MAX_MUTATION_RATE);
+    }
+}
+
 void cross(transform_model* population[], int iteration, const char* text){
     // Mutations of the first half, the worst, the more mutations
     int i;
@@ -299,9 +308,13 @@ void cross(transform_model* population[], int iteration, const char* text){
     }
 }
 
-transform_model* evolve_transform(const language_model* model, const char* text){
+transform_model* evolve_transform(
+    const language_model* model,
+    const char* text,
+    int (*controller) (
+        int iteration, transform_model* transform,
+        const char* better_output, unsigned long score)){
 
-    /* const int input_length = strlen(text); */
     const int population_count = POPULATION_SIZE;
     transform_model* population[population_count];
 
@@ -315,22 +328,12 @@ transform_model* evolve_transform(const language_model* model, const char* text)
 
 
     long iteration;
-    for (iteration = 0;;iteration++){
+    int done = 0;
+    for (iteration = 0;!done;iteration++){
         {
             int i;
             for (i = 0; i < population_count; i++){
                 char* out = process(population[i], text, model);
-
-                if (strcasecmp(out, TEST_STR) == 0){
-                    printf("Iteration (%5li) [Sc: %li |Sz: %li]: |\x1b[1m%s\x1b[0m|\n"
-                           "\x1b[1;92;40m%s\x1b[0m\n",
-                           iteration, population[i]->score, population[i]->output_size,
-                           out, population[i]->program);
-
-                    free(out);
-                    exit(0);
-                }
-
                 free(out);
             }
         }
@@ -339,22 +342,48 @@ transform_model* evolve_transform(const language_model* model, const char* text)
         qsort(&population, population_count, sizeof(transform_model*),
               inv_language_score_cmp);
 
-        if ((iteration % 100) == 0) {
+
+
+        {
             transform_model* winner = population[0];
             char* better = process(winner, text, model);
-            char* sprog = malloc(sizeof(char) * winner->program_size + 1);
-            memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
-            sprog[winner->program_size] = '\0';
 
-            printf("Iteration (%5li) [%li | %li]: |%20s|\n%s\n\n",
-                   iteration, winner->score,
-                   winner->output_size, better, sprog);
+            if ((iteration % 100) == 0) {
+                char* sprog = malloc(sizeof(char) * winner->program_size + 1);
+                memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
+                sprog[winner->program_size] = '\0';
 
-            free(sprog);
+                if (strlen(better) > 40){
+                    strcat(&better[30],
+                           "\x1b[1m%\x1b[0m");
+                }
+
+                printf("Iteration (%5li) [%li | %li]: |%s|\n%s\n\n",
+                       iteration, winner->score,
+                       winner->output_size, better, sprog);
+
+                free(sprog);
+            }
+
+            int action = controller(iteration, winner, better, winner->score);
+
             free(better);
-        }
+            switch(action){
+            case EVOLVE_SHAKE:
+                shake(population);
 
-        cross(population, iteration, text);
+            case EVOLVE_CONTINUE:
+                cross(population, iteration, text);
+                break;
+
+            case EVOLVE_DONE:
+                done = 1;
+                break;
+
+            default:
+                printf("Unknown action code: %i\n", action);
+            }
+        }
     }
 
     // Free population
@@ -383,4 +412,7 @@ void show_transform_model(transform_model* model){
         printf("(null)");
         return;
     }
+
+    printf("[Sc: %li |Sz: %li]\n\x1b[1m%s\x1b[0m\n",
+           model->score, model->output_size, model->program);
 }

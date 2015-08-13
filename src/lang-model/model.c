@@ -128,9 +128,8 @@ unsigned long language_model_score(const language_model* model,
     double three_gram_score = 0;
     int i;
 
+    /*
     const short* two_grams = model->two_grams;
-    const short* three_grams = model->three_grams;
-
     for (i = 0; words[i + 1] != '\0'; i++){
 
         unsigned char first = words[i];
@@ -143,7 +142,10 @@ unsigned long language_model_score(const language_model* model,
 
         two_gram_score += two_grams[index] != 0;
     }
+    */
 
+    /*
+    const short* three_grams = model->three_grams;
     for (i = 0; words[i + 2] != '\0'; i++){
 
         unsigned char first = words[i];
@@ -155,10 +157,9 @@ unsigned long language_model_score(const language_model* model,
         assert((index >= 0) &&
                (index < THREE_GRAMS_DICTIONARY_SIZE));
 
-        /* printf("‘%c%c%c’ %i -> %f\n ", first, second, third, three_grams[index], log2(three_grams[index] + 2) - 1); */
         three_gram_score +=  three_grams[index] != 0;
     }
-
+    */
 
 
     // Classify words and garbage
@@ -181,6 +182,9 @@ unsigned long language_model_score(const language_model* model,
         else {
             if (!isblank(words[i])){
                 garbage_size++;
+            }
+            if (!isprint(words[i])){
+                garbage_size += 2;
             }
             if (word_pos > 1){
                 word[word_pos] = '\0';
@@ -216,6 +220,7 @@ unsigned long language_model_score(const language_model* model,
     else {
         garbage_size += word_pos;
     }
+
 
     unsigned long penalization_divider = garbage_size + 2;
 
