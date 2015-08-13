@@ -8,7 +8,8 @@
 
 const char* TEST_STR = "flag stars are made of weird stuff";
 const unsigned long max_same_score = 4000;
-const long max_time_without_bump  = 50000;
+const long max_time_without_bump  = 40000;
+
 
 int controller(int iteration, transform_model* transform,
                const char* better_output, unsigned long score){

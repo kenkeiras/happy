@@ -10,9 +10,10 @@
 const char* PROGRAM_OPTIONS = ".,+-<>[]";
 #define PROGRAM_OPTION_COUNT 8
 #define MAX_MUTATION_RATE PROGRAM_OPTION_COUNT
-const int PROGRAM_SIZE = 256;
-const int POPULATION_SIZE = 256;
-#define MAX_CYCLES 1000
+const int PROGRAM_SIZE = 512;
+const int POPULATION_SIZE = 128;
+#define MAX_CYCLES 1000000
+#define SHOW_INTERVAL 20
 
 struct transform_model {
     long score;
@@ -233,7 +234,11 @@ char* process(transform_model* transform,
                 crashed = 1;
             }
             else {
+                unsigned long end_ip = ip - 1;
                 ip = loop_stack[--depth];
+                if (end_ip == (ip + 1)){ // break off [] loop
+                    ip = transform->program_size;
+                }
             }
             break;
 
@@ -247,8 +252,8 @@ char* process(transform_model* transform,
             break;
 
         case '.':
-            if (mem[mem_dir] == '\0'){
-                break;
+            if (mem[mem_dir] == '\0'){  // End program on \0
+                ip = transform->program_size;
             }
             if ((output_size + 1) >= output_heap_size){
                 output_heap_size += 128;
@@ -285,8 +290,7 @@ void shake(transform_model* population[]){
 void cross(transform_model* population[], int iteration, const char* text){
     // Mutations of the first half, the worst, the more mutations
     int index;
-    int cut_point = POPULATION_SIZE / 2;
-    for (index = 1; index < cut_point; index++){
+    for (index = 1; index < POPULATION_SIZE; index++){
         mutate(population[index], POPULATION_SIZE / index);
     }
 
@@ -369,24 +373,18 @@ transform_model* evolve_transform(
             transform_model* winner = population[0];
             char* better = process(winner, text, model);
 
-            if ((iteration % 100) == 0) {
-                char* sprog = malloc(sizeof(char) * winner->program_size + 1);
-                memcpy(sprog, winner->program, sizeof(char) * winner->program_size);
-                sprog[winner->program_size] = '\0';
+            int action = controller(iteration, winner, better, winner->score);
 
+            if ((iteration % SHOW_INTERVAL) == 0) {
                 if (strlen(better) > 40){
                     strcpy(&better[30],
                            "\x1b[7m%\x1b[0m");
                 }
 
-                printf("Iteration (%5li) [%li | %li]: |%s|\n%s\n\n",
+                printf("Iteration (%5li) [%li | %li]: |\x1b[1m%s\x1b[0m|\n",
                        iteration, winner->score,
-                       winner->output_size, better, sprog);
-
-                free(sprog);
+                       winner->output_size, better);
             }
-
-            int action = controller(iteration, winner, better, winner->score);
 
             free(better);
             switch(action){

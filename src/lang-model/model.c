@@ -179,11 +179,8 @@ unsigned long language_model_score(const language_model* model,
             if (!isblank(words[i])){
                 garbage_size++;
             }
-            if (!isprint(words[i])){
+            if ((!isprint(words[i])) || (!isascii(words[i]))){
                 garbage_size++;
-            }
-            if (!isascii(words[i])){
-                garbage_size += 2;
             }
 
             if (word_pos > 1){
@@ -192,7 +189,7 @@ unsigned long language_model_score(const language_model* model,
                 void *v = get_hash_table(model->word_count, word);
 
                 if (v != NULL){
-                    word_score += (pow(word_pos, 1.5) + (2 + log2((long) v)));
+                    word_score += pow(word_pos, 2);
                 }
                 else {
                     garbage_size += word_pos;
@@ -222,7 +219,10 @@ unsigned long language_model_score(const language_model* model,
     }
 
 
-    unsigned long penalization_divider = garbage_size + 2;
+    const int expected_size = 34;
+    int size_diff = abs(expected_size - i);
+
+    unsigned long penalization_divider = garbage_size + 2 + pow(size_diff, 2) / 10;
 
     double general_score = ((two_gram_score * TWO_GRAM_SCORE_MODIFIER)
                          + (three_gram_score * THREE_GRAM_SCORE_MODIFIER)
