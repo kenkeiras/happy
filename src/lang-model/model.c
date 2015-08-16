@@ -17,18 +17,43 @@
 #define WORD_SCORE_MODIFIER 10000
 
 struct language_model {
-    short two_grams[TWO_GRAMS_DICTIONARY_SIZE];
-    short three_grams[THREE_GRAMS_DICTIONARY_SIZE];
+    unsigned short two_grams[TWO_GRAMS_DICTIONARY_SIZE];
+    unsigned short three_grams[THREE_GRAMS_DICTIONARY_SIZE];
+    double expected_entropy;
 
     struct hash_table* word_count;
 };
 
+
+double shannon_entropy(long unsigned char_counter[]){
+    unsigned long char_num = 0;
+    int i;
+
+    for (i = 0; i < 256; i++){
+        char_num += char_counter[i];
+    }
+
+    double e_sum = 0;
+    for (i = 0; i < 256; i++){
+        unsigned long count = char_counter[i];
+        if (count != 0){
+            double prob = ((double) count) / ((double) char_num);
+            e_sum += prob * log2(prob);
+        }
+
+    }
+
+    return -e_sum;
+}
 
 language_model* build_language_model(FILE *f){
     language_model* model = malloc(sizeof(language_model));
     if (model == NULL){
         return NULL;
     }
+
+    unsigned long char_counter[256];
+    memset(char_counter, 0, sizeof(long) * 256);
 
     model->word_count = create_hash_table();
     if (model->word_count == NULL){
@@ -37,8 +62,8 @@ language_model* build_language_model(FILE *f){
     }
 
     // Set all two-grams counts to zero
-    short* two_grams = model->two_grams;
-    short* three_grams = model->three_grams;
+    unsigned short* two_grams = model->two_grams;
+    unsigned short* three_grams = model->three_grams;
 
     memset(two_grams, 0, sizeof(short) * TWO_GRAMS_DICTIONARY_SIZE);
     memset(three_grams, 0, sizeof(short) * THREE_GRAMS_DICTIONARY_SIZE);
@@ -46,6 +71,12 @@ language_model* build_language_model(FILE *f){
     unsigned char first = '\0';
     unsigned char second = '\0';
     int third = fgetc(f);
+    if (third == EOF){
+        free_language_model(model);
+        return NULL;
+    }
+
+    char_counter[third]++;
 
     char word[MAX_WORD_SIZE];
     int word_pos = 0;
@@ -59,9 +90,11 @@ language_model* build_language_model(FILE *f){
         first = second;
         second = third;
         third = fgetc(f);
-        if (third == -1){
+
+        if (third == EOF){
             break;
         }
+        char_counter[third]++;
 
         // Build word list
         {
@@ -105,6 +138,8 @@ language_model* build_language_model(FILE *f){
         }
     }
 
+    model->expected_entropy = shannon_entropy(char_counter);
+
     return model;
 }
 
@@ -128,7 +163,7 @@ unsigned long language_model_score(const language_model* model,
     double three_gram_score = 0;
     int i;
 
-    const short* two_grams = model->two_grams;
+    const unsigned short* two_grams = model->two_grams;
     for (i = 0; words[i + 1] != '\0'; i++){
 
         unsigned char first = words[i];
@@ -142,7 +177,7 @@ unsigned long language_model_score(const language_model* model,
         two_gram_score += two_grams[index] != 0;
     }
 
-    const short* three_grams = model->three_grams;
+    const unsigned short* three_grams = model->three_grams;
     for (i = 0; words[i + 2] != '\0'; i++){
 
         unsigned char first = words[i];
@@ -219,19 +254,34 @@ unsigned long language_model_score(const language_model* model,
     }
 
 
-    const int expected_size = 34;
-    int size_diff = abs(expected_size - i);
+    unsigned long char_count[256];
+    memset(char_count, 0, sizeof(long) * 256);
+    for (i = 0; words[i] != '\0'; i++){
+        char_count[(unsigned char) words[i]]++;
+    }
 
-    unsigned long penalization_divider = garbage_size + 2 + pow(size_diff, 2) / 10;
+
+    double entropy = shannon_entropy(char_count);
+    double entropy_diff = 0;
+
+    double lower_bound = model->expected_entropy - (model->expected_entropy * 0.20);
+    double upper_bound = model->expected_entropy + (model->expected_entropy * 0.20);
+
+    if (entropy < lower_bound){
+        entropy_diff = lower_bound - entropy;
+    }
+    else if (entropy > upper_bound){
+        entropy_diff = entropy - upper_bound;
+    }
+
+    unsigned long penalization_divider = (garbage_size + 2
+                                          + pow(entropy_diff * 10, 1.5));
 
     double general_score = ((two_gram_score * TWO_GRAM_SCORE_MODIFIER)
                          + (three_gram_score * THREE_GRAM_SCORE_MODIFIER)
                          + (word_score * WORD_SCORE_MODIFIER));
 
     unsigned long final_score = ((double) (10 * general_score)) / (pow(penalization_divider, 0.5));
-    if((general_score * 10) < final_score){
-        printf("%lf * 10 = %lf < %li\n\n", general_score, general_score * 10, final_score);
-    }
 
     assert((general_score == 0) || ((general_score * 10) > final_score));
 
