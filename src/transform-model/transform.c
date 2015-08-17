@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <ctype.h>
 
 const char* PROGRAM_OPTIONS = ".,+-<>[]";
 #define PROGRAM_OPTION_COUNT 8
@@ -376,12 +377,25 @@ transform_model* evolve_transform(
             int action = controller(iteration, winner, better, winner->score);
 
             if ((iteration % SHOW_INTERVAL) == 0) {
-                if (strlen(better) > 40){
-                    strcpy(&better[30],
+
+                int limit = strlen(better);
+                // Make the “better” string readable
+                if (limit > 50){
+                    strcpy(&better[40],
                            "\x1b[7m%\x1b[0m");
+
+                    limit = 40;
                 }
 
-                printf("Iteration (%5li) [%li | %li]: |\x1b[1m%s\x1b[0m|\n",
+                int i;
+                for (i = 0; i < limit; i++){
+                    if ((!isalnum(better[i])) && (!ispunct(better[i])) && (better[i] != ' ')){
+
+                        better[i] = '.';
+                    }
+                }
+
+                printf("Iteration (%5li) [%5li | %3li]: |\x1b[1m%s\x1b[0m|\n",
                        iteration, winner->score,
                        winner->output_size, better);
             }
