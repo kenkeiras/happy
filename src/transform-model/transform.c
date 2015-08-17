@@ -313,22 +313,18 @@ void cross(transform_model* population[], int iteration, const char* text){
         population[index] = copy_model(population[i]);
         assert(population[index] != NULL);
 
-        size_t i_size = population[i]->program_size;
-        size_t j_size = population[j]->program_size;
-        size_t middle = (rand() % i_size);
+        char* from = population[j]->program;
+        char* to = population[index]->program;
 
-        size_t cp_size = j_size < i_size? j_size : i_size;
+        // The cross alternates a symbol of each individual
+        int pos;
+        for (pos = 0;
+             (from[pos] != '\0') && (from[pos + 1] != '\0')
+                 && (to[pos] != '\0') && (to[pos + 1] != '\0');
+             pos += 2){
 
-        if ((((int) cp_size) - ((int) middle)) > 0){
+            to[pos] = from[pos];
 
-            memcpy(&(population[index]->program[middle]),
-                   &(population[j]->program[middle]),
-                   sizeof(char) * (cp_size - middle));
-
-            population[index]->program_size = cp_size;
-        }
-        else {
-            population[index]->program_size = middle;
         }
     }
 }
