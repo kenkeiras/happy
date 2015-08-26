@@ -64,21 +64,38 @@ void run(char *program, char *input){
 }
 
 
-int main(int argc, char **argv){
-
-    if ((argc == 4) && (strcmp(argv[1], "run") == 0)){
-        run(argv[2], argv[3]);
-        return 0;
-    }
-
-    if (argc < 3){
-        printf("%s <file> <text>\n", argc > 0? argv[0] : "happy");
-        return 0;
-    }
-
-    FILE *f = fopen(argv[1], "rt");
+int score(char *fname, char *text){
+    FILE *f = fopen(fname, "rt");
     if (f == NULL){
-        perror(argv[1]);
+        perror(fname);
+        return 1;
+    }
+
+    language_model* model = build_language_model(f);
+    if (model == NULL){
+        perror("Build language model");
+        return 2;
+    }
+
+    fclose(f);
+
+    assert(language_model_score(model, "flag star")
+           <
+           language_model_score(model, "flag stars are made of weird"));
+
+
+    printf("%li\n", language_model_score(model, text));
+
+    free_language_model(model);
+
+    return 0;
+}
+
+
+int evolve(char* fname, char* text){
+    FILE *f = fopen(fname, "rt");
+    if (f == NULL){
+        perror(fname);
         return 1;
     }
 
@@ -98,7 +115,7 @@ int main(int argc, char **argv){
 
     printf("Seed: 0x%lX\n", seed);
     srand(seed);
-    transform_model* transform = evolve_transform(model, argv[2], controller);
+    transform_model* transform = evolve_transform(model, text, controller);
     if (transform == NULL){
         perror("Evolve transform");
         return 3;
@@ -109,4 +126,28 @@ int main(int argc, char **argv){
     free_transform_model(transform);
 
     return 0;
+}
+
+
+int main(int argc, char **argv){
+
+    if ((argc == 4) && (strcmp(argv[1], "run") == 0)){
+        run(argv[2], argv[3]);
+        return 0;
+    }
+
+    if ((argc == 4) && (strcmp(argv[1], "score") == 0)){
+        return score(argv[2], argv[3]);
+    }
+
+    if ((argc == 4) || (strcmp(argv[1], "evolve") == 0)){
+        return evolve(argv[2], argv[3]);
+    }
+
+    printf("Evolve program: %s evolve <file> <text>\n", argc > 0? argv[0] : "happy");
+    printf("Score output:   %s score  <file> <text>\n", argc > 0? argv[0] : "happy");
+    printf("Run program:    %s run    <file> <input>\n", argc > 0? argv[0] : "happy");
+
+    return 0;
+
 }
