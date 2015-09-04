@@ -136,8 +136,16 @@ int main(int argc, char **argv){
         return 0;
     }
 
-    if ((argc == 4) && (strcmp(argv[1], "score") == 0)){
-        return score(argv[2], argv[3]);
+    if ((argc >= 4) && (strcmp(argv[1], "score") == 0)){
+        int i;
+        for (i = 3; i < argc; i++){
+            int ret = score(argv[2], argv[i]);
+            if (ret != 0){
+                return ret;
+            }
+        }
+
+        return 0;
     }
 
     if ((argc == 4) || (strcmp(argv[1], "evolve") == 0)){
@@ -145,7 +153,7 @@ int main(int argc, char **argv){
     }
 
     printf("Evolve program: %s evolve <file> <text>\n", argc > 0? argv[0] : "happy");
-    printf("Score output:   %s score  <file> <text>\n", argc > 0? argv[0] : "happy");
+    printf("Score output:   %s score  <file> <text> [...]\n", argc > 0? argv[0] : "happy");
     printf("Run program:    %s run    <file> <input>\n", argc > 0? argv[0] : "happy");
 
     return 0;
