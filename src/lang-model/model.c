@@ -274,8 +274,8 @@ unsigned long language_model_score(const language_model* model,
         entropy_diff = entropy - upper_bound;
     }
 
-    unsigned long penalization_divider = (garbage_size + 2
-                                          + pow(entropy_diff * 10, 1.5));
+    unsigned long penalization_divider = (pow(garbage_size + 2, 2)
+                                          + pow(entropy_diff * 10, 2));
 
     double general_score = ((two_gram_score * TWO_GRAM_SCORE_MODIFIER)
                          + (three_gram_score * THREE_GRAM_SCORE_MODIFIER)
