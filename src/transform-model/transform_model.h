@@ -1,8 +1,15 @@
-#ifndef TRANSFORM_MODEL_MODEL_H
-#define TRANSFORM_MODEL_MODEL_H
+#ifndef TRANSFORM_MODEL_TRANSFORM_MODEL_H
+#define TRANSFORM_MODEL_TRANSFORM_MODEL_H
 
 #include <stdio.h>
 #include "../lang-model/model.h"
+
+struct transform_model {
+    long score;
+    size_t output_size;
+    size_t program_size;
+    char* program;
+};
 
 typedef struct transform_model transform_model;
 
@@ -10,6 +17,9 @@ char *process(transform_model* transform,
               const char* input,
               const language_model* model);
 
+
+transform_model* new_model();
+transform_model* copy_model(transform_model* source);
 
 transform_model* transform_from_program(char *program);
 

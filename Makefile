@@ -12,7 +12,7 @@ obj/happy.o : src/happy.c
 obj/model.o: src/lang-model/model.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/transform.o: src/transform-model/transform.c
+obj/transform.o: src/transform-model/transform.c src/transform-model/cross.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/hash_table.o: src/ht/hash_table.c

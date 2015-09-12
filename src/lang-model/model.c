@@ -277,9 +277,13 @@ unsigned long language_model_score(const language_model* model,
     unsigned long penalization_divider = (pow(garbage_size + 2, 2)
                                           + pow(entropy_diff * 10, 2));
 
+    /* printf("%lf - %i = %li\n", entropy, garbage_size, penalization_divider); */
+
     double general_score = ((two_gram_score * TWO_GRAM_SCORE_MODIFIER)
                          + (three_gram_score * THREE_GRAM_SCORE_MODIFIER)
                          + (word_score * WORD_SCORE_MODIFIER));
+
+    /* printf("%lf - %lf - %li = %lf\n", two_gram_score, three_gram_score, word_score, general_score); */
 
     unsigned long final_score = ((double) (10 * general_score)) / (pow(penalization_divider, 0.5));
 
